@@ -27,8 +27,8 @@ var WordFreqSync = function WordFreqSync(options) {
   options = options || {};
 
   // fill some defaults
-  options.languages = options.languages || ['chinese', 'english'];
-  options.stopWordSets = options.stopWordSets || ['cjk', 'english1', 'english2'];
+  options.languages = options.languages || ['chinese', 'english', 'spanish'];
+  options.stopWordSets = options.stopWordSets || ['cjk', 'english1', 'english2', 'spanish'];
 
   if (!Array.isArray(options.stopWords)) {
     options.stopWords = [];
@@ -56,6 +56,16 @@ var WordFreqSync = function WordFreqSync(options) {
         break;
 
       case 'english2':
+        options.stopWords = options.stopWords.concat([
+          'we', 'us', 'our', 'ours',
+          'they', 'them', 'their', 'he', 'him', 'his',
+          'she', 'her', 'hers', 'it', 'its', 'you', 'yours', 'your',
+          'has', 'have', 'would', 'could', 'should', 'shall',
+          'can', 'may', 'if', 'then', 'else', 'but',
+          'there', 'these', 'those']);
+        break;
+        
+        case 'spanish':
         options.stopWords = options.stopWords.concat([
           'we', 'us', 'our', 'ours',
           'they', 'them', 'their', 'he', 'him', 'his',
@@ -106,6 +116,7 @@ var WordFreqSync = function WordFreqSync(options) {
         var stems = Object.create(null);
 
         // say bye bye to characters that is not belongs to a word
+        
         var words = text.split(/[^A-Za-zéÉ'’_\-0-9@\.]+/);
 
         var stopWords = options.stopWords;
@@ -162,6 +173,71 @@ var WordFreqSync = function WordFreqSync(options) {
 
         stems = undefined;
       }
+
+      // Spanish
+      if (options.languages.indexOf('spanish') !== -1) {
+        // For Spanis, Adapting english.
+        var stems = Object.create(null);
+
+        // say bye bye to characters that is not belongs to a word
+        
+        var words = text.split(/[^A-Za-záéíóúüñÁÉÍÓÚÑ'’_\-0-9@\.]+/);
+
+        var stopWords = options.stopWords;
+
+        words.forEach(function (word) {
+          word = word
+            .replace(/\.+/g, '.') // replace multiple full stops
+            .replace(/(.{3,})\.$/g, '$1') // replace single trailing stop
+            .replace(/n[\'’]t\b/ig, '') // get rid of ~n't
+            .replace(/[\'’](s|ll|d|ve)?\b/ig, ''); // get rid of ’ and '
+
+          // skip if the word is shorter than two characters
+          // (i.e. exactly one letter)
+          if (!word || word.length < 2)
+            return;
+
+          // that's not a word unless it contains at least an alphabet
+					if (/^[0-9\.@\-]+$/.test(word))
+					  return;
+
+          // skip if this is a stop word
+          if (stopWords.indexOf(word.toLowerCase()) !== -1)
+            return;
+
+          var stem = stemmer(word).toLowerCase();
+
+          // count++ for the stem
+          if (!(stem in stems))
+            stems[stem] = { count: 0, word: word};
+          stems[stem].count++;
+
+          // if the current word representing the stem is longer than
+          // this one, use this word instead (booking -> book)
+          if (word.length < stems[stem].word.length)
+            stems[stem].word = word;
+
+          // if the current word representing the stem is of the same
+          // length but with different form,
+          // use the lower-case representation (Book -> book)
+          if (word.length === stems[stem].word.length &&
+              word !== stems[stem].word)
+            stems[stem].word = word.toLowerCase();
+        });
+
+        // Push each "stem" into terms as word
+        for (var stem in stems) {
+          var term = stems[stem].word;
+          if (!(term in terms)) {
+            terms[term] = stems[stem].count;
+          } else {
+            terms[term] += stems[stem].count;
+          }
+        }
+
+        stems = undefined;
+      }
+
 
       // Chinese
       if (options.languages.indexOf('chinese') !== -1) {
